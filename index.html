@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Методичка — Модуль 1</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    max-width: 900px;
+    margin: 20px auto;
+    padding: 0 16px;
+    line-height: 1.5;
+    color: #111;
+    background: #fff;
+  }
+  h1 { font-size: 22px; margin: 16px 0 4px; }
+  h2 {
+    font-size: 20px;
+    margin: 28px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #000;
+  }
+  p { margin: 10px 0 4px; }
+  pre {
+    background: #f4f4f4;
+    border: 1px solid #ddd;
+    padding: 8px 10px;
+    margin: 0 0 10px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 14px;
+  }
+  nav { margin: 12px 0 24px; }
+  nav a { margin-right: 12px; }
+  .date { color: #555; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<h1>Методичка — Модуль 1</h1>
+<p class="date">01.12.25</p>
+
+<nav>
+  <a href="#isp">ISP</a>
+  <a href="#hq-rtr">HQ-RTR</a>
+  <a href="#br-rtr">BR-RTR</a>
+  <a href="#hq-srv">HQ-SRV</a>
+  <a href="#br-srv">BR-SRV</a>
+</nav>
+
+<h2 id="isp">ISP</h2>
+
+<p>задаем имя</p>
+<pre>ISP# hostnamectl  set-hostname isp.au-team.irpo; exec bash</pre>
+
+<p>задаем часовой пояс</p>
+<pre>ISP# timedatectl set-timezone Europe/Moscow</pre>
+
+<p>настраиваем интерфейс enp0s3</p>
+<pre>ISP# vim /etc/net/ifaces/enp0s3/options
+TYPE=eth
+BOOTPROTO=dhcp</pre>
+
+<p>создаем каталоги для интерфейсов enp0s8 и enp0s9</p>
+<pre>ISP# mkdir /etc/net/ifaces/enp0s8
+ISP# mkdir /etc/net/ifaces/enp0s9</pre>
+
+<p>редактируем созданные интерфейсы</p>
+<pre>ISP# vim /etc/net/ifaces/enp0s8/options
+TYPE=eth
+BOOTPROTO=static
+ISP# vim /etc/net/ifaces/enp0s9/options
+TYPE=eth
+BOOTPROTO=static
+ISP# echo "172.16.4.1/28" > /etc/net/ifaces/enp0s8/ipv4address
+ISP# echo "172.16.5.1/28" > /etc/net/ifaces/enp0s9/ipv4address</pre>
+
+<p>меняем net.ipv4.ip_forward на 1</p>
+<pre>ISP# vim /etc/net/sysctl.conf</pre>
+
+<p>настраиваем iptables</p>
+<pre>ISP# iptables -t nat -A POSTROUTING -o enp0s3 -j MASQUERADE
+ISP# iptables-save >> /etc/sysconfig/iptables
+ISP# systemctl enable --now iptables.service</pre>
+
+<p>рестарт</p>
+<pre>ISP# systemctl restart network</pre>
+
+
+<h2 id="hq-rtr">HQ-RTR</h2>
+
+<p>задаем имя</p>
+<pre>HQ-RTR# hostnamectl  set-hostname hq-rtr.au-team.irpo; exec bash</pre>
+
+<p>задаем часовой пояс</p>
+<pre>HQ-RTR# timedatectl set-timezone Europe/Moscow</pre>
+
+<p>настраиваем интерфейс enp0s3</p>
+<pre>HQ-RTR# vim /etc/net/ifaces/enp0s3/options
+TYPE=eth
+BOOTPROTO=static
+HQ-RTR# echo "172.16.4.14/28" >/etc/net/ifaces/enp0s3/ipv4address
+HQ-RTR# echo "default via 172.16.4.1" >/etc/net/ifaces/enp0s3/ipv4route
+HQ-RTR# echo "nameserver 77.88.8.8" > /etc/net/ifaces/enp0s3/resolv.conf</pre>
+
+<p>создаем каталог для enp0s8</p>
+<pre>HQ-RTR# mkdir /etc/net/ifaces/enp0s8</pre>
+
+<p>редактируем</p>
+<pre>HQ-RTR# vim /etc/net/ifaces/enp0s8/options
+TYPE=eth
+BOOTPROTO=static
+HQ-RTR# echo "192.168.100.1/26" > /etc/net/ifaces/enp0s8/ipv4address</pre>
+
+<p>создаем каталоги для vlan</p>
+<pre>HQ-RTR# mkdir /etc/net/ifaces/vlan100
+HQ-RTR# mkdir /etc/net/ifaces/vlan200
+HQ-RTR# mkdir /etc/net/ifaces/vlan999</pre>
+
+<p>редактируем 3 файла options</p>
+<pre>HQ-RTR# vim /etc/net/ifaces/vlan100/options
+TYPE=ovsport
+BRIDGE=HQ-SW
+VID=100
+BOOTPROTO=static
+CONFIG_IPV4=yes
+HQ-RTR# cp /etc/net/ifaces/vlan100 /etc/net/ifaces/vlan200/options
+HQ-RTR# cp /etc/net/ifaces/vlan100/options /etc/net/ifaces/vlan999/options
+HQ-RTR# vim /etc/net/ifaces/vlan200/optqins
+VID=200
+HQ-RTR# vim /etc/net/ifaces/vlan999/options
+VID=999</pre>
+
+<p>задаем ip адреса для интерфейсов vlan</p>
+<pre>HQ-RTR# echo "192.168.100.1/26" > /etc/net/ifaces/vlan100/ipv4address
+HQ-RTR# echo "192.168.100.65/28" > /etc/net/ifaces/vlan200/ipv4address
+HQ-RTR# echo "192.168.100.81/29" > /etc/net/ifaces/vlan999/ipv4address</pre>
+
+<p>создаем интерфейс hq-sw и настраиваем</p>
+<pre>HQ-RTR# mkdir /etc/net/ifaces/HQ-SW
+HQ-RTR# echo "TYPE=ovsbr" > /etc/net/ifaces/HQ-SW/options</pre>
+
+<p>хз</p>
+<pre>HQ-RTR# modprobe 8021q</pre>
+
+<p>меняем net.ipv4.ip_forward на 1</p>
+<pre>HQ-RTR# vim /etc/net/sysctl.conf</pre>
+
+<p>хз</p>
+<pre>HQ-RTR# sed -i "s/OVS_REMOVE=yes/OVS_REMOVE=no/g" /etc/net/ifaces/default/options</pre>
+
+<p>создаем пользователя и настраиваем</p>
+<pre>HQ-RTR# useradd net_admin
+HQ-RTR# passwd net_admin
+HQ-RTR# usermod -aG wheel net_admin
+HQ-RTR# echo "net_admin ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers</pre>
+
+<p>создаем ip тунель</p>
+<pre>HQ-RTR# mkdir /etc/net/ifaces/gre1
+HQ-RTR# vim /etc/net/ifaces/gre1/options
+TYPE=iptun
+TUNTYPE=gre
+TUNLOCAL=172.16.4.14
+TUNREMOTE=172.16.5.14
+TUNOPTIONS='ttl 64'
+HOST=enp0s3
+HQ-RTR# echo "10.10.10.1/30" > /etc/net/ifaces/gre1/ipv4address
+HQ-RTR# modprobe gre</pre>
+
+<p>настраиваем iptables</p>
+<pre>HQ-RTR# iptables -t nat -A POSTROUTING -o enp0s3 -j MASQUERADE
+HQ-RTR# iptables-save >> /etc/sysconfig/iptables
+HQ-RTR# systemctl enable --now iptables.service</pre>
+
+<p>рестарт</p>
+<pre>HQ-RTR# systemctl restart network</pre>
+
+
+<h2 id="br-rtr">BR-RTR</h2>
+
+<p>задаем имя</p>
+<pre>BR-RTR# hostnamectl  set-hostname br-rtr.au-team.irpo; exec bash</pre>
+
+<p>устанавливаем часовой пояс</p>
+<pre>BR-RTR# timedatectl set-timezone Europe/Moscow</pre>
+
+<p>редактируем интерфейс enp0s3</p>
+<pre>BR-RTR# vim /etc/net/ifaces/enp0s3/options
+TYPE=eth
+BOOTPROTO=static
+BR-RTR# echo "172.16.5.14/28" > /etc/net/ifaces/enp0s3/ipv4address
+BR-RTR# echo "default via 172.16.5.1" > /etc/net/ifaces/enp0s3/ipv4route
+BR-RTR# echo "nameserver 77.88.8.8" > /etc/net/ifaces/enp0s3/resolv.conf</pre>
+
+<p>редактируем интерфейс enp0s8</p>
+<pre>BR-RTR# mkdir /etc/net/ifaces/enp0s8
+BR-RTR# vim /etc/net/ifaces/enp0s8/options
+TYPE=eth
+BOOTPROTO=static
+BR-RTR# echo "192.168.200.1/27" > /etc/net/ifaces/enp0s8/ipv4address</pre>
+
+<p>меняем net.ipv4.ip_forward на 1</p>
+<pre>BR-RTR# vim /etc/net/sysctl.conf</pre>
+
+<p>добавляем пользователя</p>
+<pre>BR-RTR# useradd net_admin
+BR-RTR# passwd net_admin
+BR-RTR# usermod -aG wheel net_admin
+BR-RTR# echo "net_admin ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers</pre>
+
+<p>создаем ip тунель</p>
+<pre>BR-RTR# mkdir /etc/net/ifaces/gre1
+BR-RTR# vim /etc/net/ifaces/gre1/options
+TYPE=iptun
+TUNTYPE=gre
+TUNLOCAL=172.16.5.14
+TUNREMOTE=172.16.4.14
+TUNOPTIONS='ttl 64'
+HOST=enp0s3
+BR-RTR# echo "10.10.10.2/30" > /etc/net/ifaces/gre1/ipv4address
+BR-RTR# modprobe gre</pre>
+
+<p>настраиваем iptables</p>
+<pre>BR-RTR# iptables -t nat -A POSTROUTING -o enp0s3 -j MASQUERADE
+BR-RTR# iptables-save >> /etc/sysconfig/iptables
+BR-RTR# systemctl enable --now iptables.service</pre>
+
+
+<h2 id="hq-srv">HQ-SRV</h2>
+
+<p>задаем имя</p>
+<pre>HQ-SRV# hostnamectl  set-hostname hq-srv.au-team.irpo; exec bash</pre>
+
+<p>задаем часовой пояс</p>
+<pre>HQ-SRV# timedatectl set-timezone Europe/Moscow</pre>
+
+<p>настраиваем enp0s3</p>
+<pre>HQ-SRV# vim /etc/net/ifaces/enp0s3/options
+TYPE=eth
+BOOTPROTO=static
+HQ-SRV# echo "192.168.100.2/26" > /etc/net/ifaces/enp0s3/ipv4address
+HQ-SRV# echo "default via 192.168.100.1" > /etc/net/ifaces/enp0s3/ipv4route
+HQ-SRV# echo "nameserver 77.88.8.8" > /etc/net/ifaces/enp0s3/resolv.conf</pre>
+
+<p>рестарт</p>
+<pre>HQ-SRV# systemctl restart network</pre>
+
+<p>добавляем пользователя</p>
+<pre>HQ-SRV# useradd sshuser -u 1010
+HQ-SRV# passwd sshuser
+HQ-SRV# usermod -aG wheel sshuser
+HQ-SRV# echo "sshuser ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers</pre>
+
+<p>редактируем sshd_config</p>
+<pre>HQ-SRV# vim /etc/openssh/sshd_config
+HQ-SRV# echo "Authorized access only" > /etc/openssh/banner</pre>
+
+<p>рестрт</p>
+<pre>HQ-SRV# systemctl restart sshd</pre>
+
+
+<h2 id="br-srv">BR-SRV</h2>
+
+<p>задаем имя</p>
+<pre>BR-SRV# hostnamectl  set-hostname br-srv.au-team.irpo; exec bash</pre>
+
+<p>задаем часовой пояс</p>
+<pre>BR-SRV# timedatectl set-timezone Europe/Moscow</pre>
+
+<p>редактируем enp0s3</p>
+<pre>BR-SRV# vim /etc/net/ifaces/enp0s3/options
+TYPE=eth
+BOOTPROTO=static
+BR-SRV# echo "192.168.200.2/27" > /etc/net/ifaces/enp0s3/ipv4address
+BR-SRV# echo "default via 192.168.200.1" > /etc/net/ifaces/enp0s3/ipv4route
+BR-SRV# echo "nameserver 77.88.8.8" > /etc/net/ifaces/enp0s3/resolv.conf</pre>
+
+<p>рестарт</p>
+<pre>HQ-SRV# systemctl restart network</pre>
+
+<p>добавляем пользоваетля</p>
+<pre>BR-SRV# useradd sshuser -u 1010
+BR-SRV# passwd sshuser
+BR-SRV# usermod -aG wheel sshuser
+BR-SRV# echo "sshuser ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers</pre>
+
+<p>редактируем sshd_config</p>
+<pre>BR-SRV# vim /etc/openssh/sshd_config
+BR-SRV# echo "Authorized access only" > /etc/openssh/banner</pre>
+
+<p>рестарт</p>
+<pre>HQ-SRV# systemctl restart sshd</pre>
+
+</body>
+</html>
